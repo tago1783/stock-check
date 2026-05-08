@@ -1,0 +1,4 @@
+yfinance
+pandas
+anthropic>=0.85
+streamlit
