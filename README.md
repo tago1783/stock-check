@@ -8,12 +8,13 @@ yfinance から株価データを取得して、価格チャート・テクニ�
 
 ホーム（詳細）画面に加え、サイドバーから5機能に切り替え可能。
 
-- **詳細** (`app.py`) — 銘柄個別の価格チャート + SMA/RSI/MACD/Bollinger
+- **詳細** (`app.py`) — 銘柄個別の価格チャート + SMA/RSI/MACD/Bollinger + AI 3軸レビュー
 - **ウォッチリスト** — 保存した複数銘柄の現在値・騰落率一覧。URL に保存（ブックマーク・共有可）
 - **銘柄比較** — 始点を 100 に揃えた相対パフォーマンス比較チャート
 - **配当履歴** — 年次配当の棒グラフ + 全支払履歴 + 配当利回り
 - **ニュース** — yfinance 経由の最新ニュース記事一覧
 - **企業情報** — 52週レンジ、PER/PBR/Beta/ROE 等のファンダメンタル + 事業概要
+- **業種別** — ウォッチリストを業種でグループ化し、平均パフォーマンスを比較
 
 ## ローカル起動
 
@@ -65,6 +66,7 @@ python ai_advisor.py 7203.T
 | `pages/3_Dividends.py` | 配当履歴 |
 | `pages/4_News.py` | ニュース |
 | `pages/5_Company.py` | 企業情報 |
+| `pages/6_Sector.py` | 業種別ビュー |
 | `_lib.py` | ページ共通（キャッシュ + ウォッチリスト永続化） |
 | `stock_data.py` | yfinance 取得レイヤー + 複数銘柄 CLI |
 | `indicators.py` | SMA / RSI / MACD / Bollinger |

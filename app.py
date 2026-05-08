@@ -17,6 +17,11 @@ from indicators import add_indicators, latest_summary
 st.set_page_config(page_title="Stock Check", layout="wide")
 st.title("Stock Check — yfinance + Claude")
 st.caption("⚠️ 教育・試作目的。実際の投資判断は本人の責任で行ってください。")
+st.info(
+    "👈 サイドバー上部のナビから他の機能にも移動できます："
+    " **Watchlist** / **Compare** (銘柄比較) / **Dividends** (配当) / "
+    "**News** / **Company** (企業情報) / **Sector** (業種別)"
+)
 
 # ─── サイドバー ────────────────────────────────────────────
 with st.sidebar:
