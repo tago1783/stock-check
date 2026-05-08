@@ -1,25 +1,106 @@
-"""ウォッチリスト: 保存銘柄の一覧。URL の ?w=AAPL,MSFT,7203.T で共有可能。"""
+"""ウォッチリスト: 銘柄保存と現在値一覧。社名検索でも追加可能。"""
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
 
-from _lib import add_to_watchlist, cached_fetch, get_watchlist, remove_from_watchlist
+from _lib import (
+    add_to_watchlist,
+    cached_fetch,
+    filter_by_regex,
+    get_watchlist,
+    remove_from_watchlist,
+    search_ticker,
+)
 
 st.set_page_config(page_title="ウォッチリスト", layout="wide")
 st.title("📋 ウォッチリスト")
-st.caption("保存銘柄の現在値と騰落率。URL に保存されるのでブックマーク・共有可能です。")
+st.caption(
+    "保存銘柄の現在値・騰落率を一覧表示。リストは URL (`?w=AAPL,7203.T`) に保存されるので、"
+    "ブックマークすればそのまま再現・共有できます。"
+)
 
-with st.sidebar:
-    st.header("追加")
-    new = st.text_input("Ticker", placeholder="例: AAPL, 7203.T").strip()
-    if st.button("追加", type="primary", disabled=not new):
-        add_to_watchlist(new)
-        st.rerun()
+current = get_watchlist()
 
+# ─── 銘柄追加 UI ───────────────────────────────────────────
+with st.expander("➕ 銘柄を追加", expanded=not current):
+    tab_search, tab_direct = st.tabs(["🔍 社名で検索", "✏️ ティッカー直接入力"])
+
+    # ── 社名検索タブ ──────────────────────────────────────
+    with tab_search:
+        with st.form("search_form", clear_on_submit=False):
+            cols = st.columns([4, 1])
+            query = cols[0].text_input(
+                "社名・シンボル",
+                placeholder="例: apple, northsand, トヨタ, 任天堂",
+                label_visibility="collapsed",
+            ).strip()
+            submitted = cols[1].form_submit_button("🔍 検索", type="primary")
+            use_regex = st.checkbox(
+                "結果を正規表現でフィルタ (上級者向け)",
+                help="Yahoo の検索結果を更にクライアント側で絞り込む",
+            )
+
+        if submitted and query:
+            try:
+                candidates = search_ticker(query)
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"検索失敗: {exc}")
+                candidates = []
+
+            if use_regex:
+                candidates = filter_by_regex(candidates, query)
+
+            if not candidates:
+                st.info(
+                    "候補が見つかりませんでした。スペル、または `XXXX.T` (東証) のような市場サフィックスを確認してください。"
+                )
+            else:
+                st.caption(f"{len(candidates)} 件ヒット")
+                already = set(current)
+                for c in candidates:
+                    cols = st.columns([5, 1])
+                    sec = f" · {c['sector']}" if c.get("sector") else ""
+                    typ = f" [{c['type']}]" if c.get("type") else ""
+                    cols[0].markdown(
+                        f"**{c['symbol']}** — {c['name']}  \n"
+                        f"<small>{c['exchange']}{sec}{typ}</small>",
+                        unsafe_allow_html=True,
+                    )
+                    if c["symbol"] in already:
+                        cols[1].caption("✓ 追加済")
+                    elif cols[1].button("➕ 追加", key=f"add_{c['symbol']}"):
+                        add_to_watchlist(c["symbol"])
+                        st.rerun()
+
+    # ── 直接入力タブ ──────────────────────────────────────
+    with tab_direct:
+        with st.form("direct_form", clear_on_submit=True):
+            cols = st.columns([4, 1])
+            new = cols[0].text_input(
+                "Ticker",
+                placeholder="例: AAPL / 7203.T / 446A.T",
+                label_visibility="collapsed",
+                help="米国はそのまま、東証は末尾 .T、香港は .HK、ロンドンは .L など",
+            ).strip()
+            add_btn = cols[1].form_submit_button("➕ 追加", type="primary")
+        if add_btn and new:
+            add_to_watchlist(new)
+            st.rerun()
+
+# ─── 一覧 (空 or 表示) ─────────────────────────────────────
 tickers = get_watchlist()
 if not tickers:
-    st.info("ウォッチリストは空です。サイドバーから銘柄を追加してください。")
+    st.info(
+        """
+        **ウォッチリストはまだ空です**。上の「➕ 銘柄を追加」から登録してください:
+
+        - 🔍 **社名で検索** タブ — 例: `apple` / `northsand` / `トヨタ` と入力 → 候補から「➕ 追加」を押す
+        - ✏️ **ティッカー直接入力** タブ — `AAPL`、`7203.T`、`446A.T` のようにコードを入れて「➕ 追加」
+
+        追加した銘柄はブラウザの URL (`?w=...`) に保存されるので、ブックマークすれば再訪時も同じリストが復元されます。
+        """
+    )
     st.stop()
 
 rows = []
@@ -56,7 +137,7 @@ if rows:
         },
     )
 
-    st.subheader("削除")
+    st.subheader("🗑️ 削除")
     cols = st.columns(min(len(rows), 5))
     for i, r in enumerate(rows):
         if cols[i % len(cols)].button(f"❌ {r['Ticker']}", key=f"del_{r['Ticker']}"):

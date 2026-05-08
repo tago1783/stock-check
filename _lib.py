@@ -1,7 +1,10 @@
-"""ページ共通の小物。キャッシュ付き fetch とウォッチリスト state。"""
+"""ページ共通の小物。キャッシュ付き fetch / ウォッチリスト state / 銘柄検索。"""
 from __future__ import annotations
 
+import re
+
 import streamlit as st
+import yfinance as yf
 
 from stock_data import StockSnapshot, fetch_one
 
@@ -40,3 +43,36 @@ def add_to_watchlist(ticker: str) -> None:
 
 def remove_from_watchlist(ticker: str) -> None:
     set_watchlist([t for t in get_watchlist() if t != ticker.strip().upper()])
+
+
+# ─── 銘柄検索 (社名 → ティッカー) ─────────────────────────
+@st.cache_data(ttl=600, show_spinner=False)
+def search_ticker(query: str, limit: int = 15) -> list[dict]:
+    """Yahoo Finance autocomplete で社名/シンボル検索。
+
+    返却: [{symbol, name, exchange, type, sector}, ...]
+    """
+    if not query.strip():
+        return []
+    result = yf.Search(query.strip(), max_results=limit)
+    out = []
+    for q in (result.quotes or [])[:limit]:
+        out.append({
+            "symbol": q.get("symbol", ""),
+            "name": q.get("longname") or q.get("shortname") or q.get("symbol", ""),
+            "exchange": q.get("exchDisp") or q.get("exchange", ""),
+            "type": q.get("typeDisp") or q.get("quoteType", ""),
+            "sector": q.get("sectorDisp") or q.get("sector", ""),
+        })
+    return out
+
+
+def filter_by_regex(items: list[dict], pattern: str) -> list[dict]:
+    """name または symbol が pattern にマッチするものだけ残す。"""
+    if not pattern:
+        return items
+    try:
+        rx = re.compile(pattern, re.IGNORECASE)
+    except re.error:
+        return items
+    return [c for c in items if rx.search(c["name"]) or rx.search(c["symbol"])]

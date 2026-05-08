@@ -10,7 +10,7 @@ import os
 import pandas as pd
 import streamlit as st
 
-from _lib import cached_fetch
+from _lib import cached_fetch, search_ticker
 from indicators import add_indicators, latest_summary
 
 
@@ -26,7 +26,40 @@ st.info(
 # ─── サイドバー ────────────────────────────────────────────
 with st.sidebar:
     st.header("銘柄")
-    ticker = st.text_input("Ticker", value="7203.T", help="例: 7203.T (トヨタ), AAPL, MSFT").strip()
+
+    # 社名検索 (任意)
+    with st.expander("🔍 社名で検索"):
+        with st.form("home_search_form"):
+            sq = st.text_input(
+                "社名・シンボル",
+                placeholder="例: apple, ノースサンド",
+                label_visibility="collapsed",
+            ).strip()
+            search_btn = st.form_submit_button("検索", type="primary")
+        if search_btn and sq:
+            try:
+                cands = search_ticker(sq, limit=8)
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"検索失敗: {exc}")
+                cands = []
+            if not cands:
+                st.info("候補なし")
+            else:
+                st.caption(f"{len(cands)} 件 — クリックで Ticker 欄に反映")
+                for c in cands:
+                    label = f"**{c['symbol']}** {c['name'][:24]}"
+                    if st.button(label, key=f"home_pick_{c['symbol']}"):
+                        st.session_state["ticker_input"] = c["symbol"]
+                        st.rerun()
+
+    # Ticker (session_state経由で検索結果を反映可)
+    if "ticker_input" not in st.session_state:
+        st.session_state["ticker_input"] = "7203.T"
+    ticker = st.text_input(
+        "Ticker",
+        key="ticker_input",
+        help="例: 7203.T (トヨタ), AAPL, MSFT, 446A.T (ノースサンド)",
+    ).strip()
     period = st.selectbox("期間", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=2)
     interval = st.selectbox("足", ["1d", "1wk", "1mo"], index=0)
     fetch_btn = st.button("取得", type="primary")
