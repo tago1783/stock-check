@@ -5,12 +5,10 @@
 """
 from __future__ import annotations
 
-import os
-
 import pandas as pd
 import streamlit as st
 
-from _lib import cached_fetch, has_cjk, search_ticker
+from _lib import cached_fetch, has_cjk, render_api_key_input, search_ticker
 from indicators import add_indicators, latest_summary
 
 
@@ -71,22 +69,11 @@ with st.sidebar:
     st.divider()
     st.header("🤖 AI 予想 (任意)")
     st.caption(
-        "Claude Opus 4.7 でファンダ・テクニカル・センチメントの3軸レビューを生成します。\n"
-        "ご自身の Anthropic API キーが必要です ([取得はこちら](https://console.anthropic.com/))。\n"
-        "キーは入力後ブラウザのこのタブ内のメモリにのみ保持され、サーバーには保存されません。"
+        "Claude Opus 4.7 でファンダ・テクニカル・センチメントの3軸レビューを生成。"
+        "[API キー取得](https://console.anthropic.com/)。"
+        "キーはブラウザのこのタブのメモリのみに保持されます。"
     )
-    # 環境変数 ANTHROPIC_API_KEY を優先 (ローカル開発用)、無ければ UI 入力
-    env_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if env_key:
-        st.success("環境変数のキーを使用中")
-        api_key = env_key
-    else:
-        api_key = st.text_input(
-            "ANTHROPIC_API_KEY",
-            type="password",
-            placeholder="sk-ant-...",
-            help="key を入力すると AI 予想ボタンが有効になります",
-        ).strip()
+    api_key = render_api_key_input()
     run_ai = st.button("🔮 AI 予想を実行", disabled=not api_key, type="secondary")
 
 if not fetch_btn and not run_ai:

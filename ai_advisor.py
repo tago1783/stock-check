@@ -204,6 +204,73 @@ def advise(snapshot: StockSnapshot, *, api_key: str | None = None) -> Advice:
     )
 
 
+# ─── 社名 → ティッカー候補 (日本語OK) ──────────────────────
+SEARCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["candidates"],
+    "properties": {
+        "candidates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["ticker", "name_en", "name_local", "exchange", "confidence"],
+                "properties": {
+                    "ticker": {"type": "string"},
+                    "name_en": {"type": "string"},
+                    "name_local": {"type": "string"},
+                    "exchange": {"type": "string"},
+                    "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+                },
+            },
+        }
+    },
+}
+
+SEARCH_SYSTEM_PROMPT = """あなたは金融データの専門家です。
+ユーザーが入力した日本語/英語/部分一致の社名から、Yahoo Finance で取得可能な
+ティッカーシンボルを最大 5 件まで候補として返してください。
+
+# ティッカー命名規則
+- 米国上場: そのまま (例: AAPL, MSFT)
+- 東証 (プライム/スタンダード/グロース): 末尾 .T (例: 7203.T, 446A.T)
+- 香港: 末尾 .HK / ロンドン: 末尾 .L / フランクフルト: 末尾 .DE 等
+
+# ルール
+- 不確実な場合は confidence="low"
+- 上場している会社のみ含める。非上場や私募は除外
+- 同名異社（例: トヨタ自動車 vs トヨタ通商）は別エントリで列挙
+- ADR と現地株が両方ある場合は両方候補に
+- name_local には日本語名（あれば）、name_en には英語名
+- 候補が見つからない場合は candidates を空配列にする"""
+
+
+def search_via_ai(query: str, api_key: str) -> list[dict]:
+    """社名から Yahoo Finance ティッカー候補を Claude に問い合わせる。"""
+    client = anthropic.Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=800,
+        thinking={"type": "adaptive"},
+        output_config={
+            "effort": "low",
+            "format": {"type": "json_schema", "schema": SEARCH_SCHEMA},
+        },
+        system=[
+            {
+                "type": "text",
+                "text": SEARCH_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        messages=[{"role": "user", "content": f"社名: {query}"}],
+    )
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    data = json.loads(text)
+    return data.get("candidates", [])
+
+
 def main() -> int:
     import argparse
     from stock_data import fetch_one

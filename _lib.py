@@ -1,6 +1,7 @@
-"""ページ共通の小物。キャッシュ付き fetch / ウォッチリスト state / 銘柄検索。"""
+"""ページ共通の小物。キャッシュ付き fetch / ウォッチリスト state / 銘柄検索 / API キー。"""
 from __future__ import annotations
 
+import os
 import re
 
 import streamlit as st
@@ -102,3 +103,35 @@ def has_cjk(s: str) -> bool:
         0x3040 <= ord(c) <= 0x9FFF or 0xFF00 <= ord(c) <= 0xFFEF
         for c in s
     )
+
+
+# ─── ANTHROPIC API key (全ページ共有) ──────────────────────
+ANTHROPIC_KEY_STATE = "anthropic_api_key"
+
+
+def get_anthropic_key() -> str | None:
+    """env > session_state の順で API キーを取得。"""
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if env_key:
+        return env_key
+    return st.session_state.get(ANTHROPIC_KEY_STATE) or None
+
+
+def render_api_key_input(*, label: str = "ANTHROPIC_API_KEY") -> str | None:
+    """API キー入力欄を描画。env が立っていれば代わりに簡易表示。
+
+    `key=ANTHROPIC_KEY_STATE` で session_state に保存するので、
+    どのページから入力してもアプリ全体で同じキーを共有できる。
+    """
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        st.caption("✓ 環境変数の API キーを使用中")
+        return os.environ["ANTHROPIC_API_KEY"]
+    val = st.text_input(
+        label,
+        type="password",
+        key=ANTHROPIC_KEY_STATE,
+        placeholder="sk-ant-...",
+        help="Anthropic Console (console.anthropic.com) で発行。"
+             "ブラウザのこのタブのメモリにのみ保持されサーバーに送信されません。",
+    ).strip()
+    return val or None

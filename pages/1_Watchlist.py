@@ -8,9 +8,11 @@ from _lib import (
     add_to_watchlist,
     cached_fetch,
     filter_by_regex,
+    get_anthropic_key,
     get_watchlist,
     has_cjk,
     remove_from_watchlist,
+    render_api_key_input,
     search_ticker,
 )
 
@@ -20,6 +22,14 @@ st.caption(
     "保存銘柄の現在値・騰落率を一覧表示。リストは URL (`?w=AAPL,7203.T`) に保存されるので、"
     "ブックマークすればそのまま再現・共有できます。"
 )
+
+with st.sidebar:
+    st.header("🤖 AI 検索 (任意)")
+    st.caption(
+        "API キーを入れると、Yahoo Finance が反応しない日本語社名でも"
+        "Claude がティッカー候補を返します（例: トヨタ → 7203.T）。"
+    )
+    render_api_key_input()
 
 current = get_watchlist()
 
@@ -56,12 +66,52 @@ with st.expander("➕ 銘柄を追加", expanded=not current):
             if use_regex:
                 candidates = filter_by_regex(candidates, query)
 
+            # ── Yahoo が 0 件 → Claude にフォールバック ──────
             if not candidates:
-                if has_cjk(query):
+                api_key = get_anthropic_key()
+                if api_key:
+                    with st.spinner("🤖 Claude に問い合わせ中..."):
+                        try:
+                            from ai_advisor import search_via_ai
+                            ai_candidates = search_via_ai(query, api_key)
+                        except Exception as exc:  # noqa: BLE001
+                            st.error(f"AI検索失敗: {exc}")
+                            ai_candidates = []
+
+                    if ai_candidates:
+                        already = set(current)
+                        st.success(f"🤖 Claude が {len(ai_candidates)} 件の候補を返しました")
+                        for c in ai_candidates:
+                            cols = st.columns([5, 1])
+                            local = f" ({c['name_local']})" if c.get("name_local") and c["name_local"] != c.get("name_en") else ""
+                            conf_emoji = {"high": "🟢", "medium": "🟡", "low": "🟠"}.get(c.get("confidence"), "")
+                            cols[0].markdown(
+                                f"**{c['ticker']}** — {c['name_en']}{local}  \n"
+                                f"<small>{c.get('exchange', '')} · {conf_emoji} {c.get('confidence', '')}</small>",
+                                unsafe_allow_html=True,
+                            )
+                            if c["ticker"] in already:
+                                cols[1].caption("✓ 追加済")
+                            elif cols[1].button("➕ 追加", key=f"ai_add_{c['ticker']}"):
+                                add_to_watchlist(c["ticker"])
+                                st.rerun()
+                    elif has_cjk(query):
+                        st.warning(
+                            f"Claude も該当を見つけられませんでした。"
+                            "『✏️ ティッカー直接入力』タブで証券コードを入れてください。"
+                        )
+                    else:
+                        st.info(
+                            "候補が見つかりませんでした。スペルや市場サフィックスを確認してください。"
+                        )
+                elif has_cjk(query):
                     st.warning(
-                        f"日本語の `{query}` では検索 API が反応しません。"
-                        " **英語/ローマ字** で入力してください（例: トヨタ → `toyota`、任天堂 → `nintendo`）。"
-                        " ローマ字が分からない場合は『✏️ ティッカー直接入力』タブで `7203.T` のように入れてください。"
+                        f"日本語の `{query}` では Yahoo の検索 API が反応しません。\n\n"
+                        "**回避策**:\n"
+                        "1. 英語/ローマ字で再検索（例: トヨタ → `toyota`、任天堂 → `nintendo`）\n"
+                        "2. または **左サイドバーで Anthropic API キーを入力** すると、"
+                        "Claude が日本語社名 → ティッカー変換を行います\n"
+                        "3. または『✏️ ティッカー直接入力』タブで `7203.T` のように入れる"
                     )
                 else:
                     st.info(
