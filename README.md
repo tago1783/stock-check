@@ -6,10 +6,14 @@ yfinance から株価データを取得して、価格チャート・テクニ�
 
 ## 機能
 
-- 銘柄コード入力で価格履歴・時価総額・PER を取得
-- 移動平均（SMA20/50）+ ボリンジャーバンド付き価格チャート
-- RSI(14) / MACD タブ
-- 直近60本の生データテーブル
+ホーム（詳細）画面に加え、サイドバーから5機能に切り替え可能。
+
+- **詳細** (`app.py`) — 銘柄個別の価格チャート + SMA/RSI/MACD/Bollinger
+- **ウォッチリスト** — 保存した複数銘柄の現在値・騰落率一覧。URL に保存（ブックマーク・共有可）
+- **銘柄比較** — 始点を 100 に揃えた相対パフォーマンス比較チャート
+- **配当履歴** — 年次配当の棒グラフ + 全支払履歴 + 配当利回り
+- **ニュース** — yfinance 経由の最新ニュース記事一覧
+- **企業情報** — 52週レンジ、PER/PBR/Beta/ROE 等のファンダメンタル + 事業概要
 
 ## ローカル起動
 
@@ -46,7 +50,13 @@ python ai_advisor.py 7203.T
 
 | ファイル | 役割 |
 |---|---|
-| `app.py` | Streamlit UI |
+| `app.py` | エントリ + 詳細画面 |
+| `pages/1_Watchlist.py` | ウォッチリスト |
+| `pages/2_Compare.py` | 銘柄比較 |
+| `pages/3_Dividends.py` | 配当履歴 |
+| `pages/4_News.py` | ニュース |
+| `pages/5_Company.py` | 企業情報 |
+| `_lib.py` | ページ共通（キャッシュ + ウォッチリスト永続化） |
 | `stock_data.py` | yfinance 取得レイヤー + 複数銘柄 CLI |
 | `indicators.py` | SMA / RSI / MACD / Bollinger |
 | `ai_advisor.py` | Claude API 投資判断（ローカル専用） |
