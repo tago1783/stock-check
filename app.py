@@ -1,7 +1,7 @@
-"""Streamlit UI: 銘柄入力 → 価格チャート + 指標 + AI投資判断ドラフト。
+"""Streamlit UI: 銘柄詳細 + AI 3軸レビュー (ファンダ/テクニカル/センチメント)。
 
 起動:
-    streamlit run app.py
+    python -m streamlit run app.py
 """
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import os
 import pandas as pd
 import streamlit as st
 
+from _lib import cached_fetch
 from indicators import add_indicators, latest_summary
-from stock_data import fetch_one
 
 
 st.set_page_config(page_title="Stock Check", layout="wide")
@@ -19,31 +19,42 @@ st.title("Stock Check — yfinance + Claude")
 st.caption("⚠️ 教育・試作目的。実際の投資判断は本人の責任で行ってください。")
 
 # ─── サイドバー ────────────────────────────────────────────
-AI_ENABLED = os.environ.get("ENABLE_AI") == "1"
-
 with st.sidebar:
-    st.header("入力")
+    st.header("銘柄")
     ticker = st.text_input("Ticker", value="7203.T", help="例: 7203.T (トヨタ), AAPL, MSFT").strip()
     period = st.selectbox("期間", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=2)
     interval = st.selectbox("足", ["1d", "1wk", "1mo"], index=0)
-    if AI_ENABLED:
-        run_ai = st.checkbox(
-            "Claudeで投資判断ドラフトを生成",
-            value=False,
-            help="ANTHROPIC_API_KEY 環境変数が必要",
-        )
-    else:
-        run_ai = False
     fetch_btn = st.button("取得", type="primary")
 
-if not fetch_btn:
+    st.divider()
+    st.header("🤖 AI 予想 (任意)")
+    st.caption(
+        "Claude Opus 4.7 でファンダ・テクニカル・センチメントの3軸レビューを生成します。\n"
+        "ご自身の Anthropic API キーが必要です ([取得はこちら](https://console.anthropic.com/))。\n"
+        "キーは入力後ブラウザのこのタブ内のメモリにのみ保持され、サーバーには保存されません。"
+    )
+    # 環境変数 ANTHROPIC_API_KEY を優先 (ローカル開発用)、無ければ UI 入力
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if env_key:
+        st.success("環境変数のキーを使用中")
+        api_key = env_key
+    else:
+        api_key = st.text_input(
+            "ANTHROPIC_API_KEY",
+            type="password",
+            placeholder="sk-ant-...",
+            help="key を入力すると AI 予想ボタンが有効になります",
+        ).strip()
+    run_ai = st.button("🔮 AI 予想を実行", disabled=not api_key, type="secondary")
+
+if not fetch_btn and not run_ai:
     st.info("左サイドバーで銘柄を入力して「取得」を押してください。")
     st.stop()
 
 # ─── データ取得 ────────────────────────────────────────────
 with st.spinner(f"{ticker} を取得中..."):
     try:
-        snap = fetch_one(ticker, period=period, interval=interval)
+        snap = cached_fetch(ticker, period=period, interval=interval)
     except Exception as exc:  # noqa: BLE001
         st.error(f"取得失敗: {exc}")
         st.stop()
@@ -96,24 +107,72 @@ with tab_table:
         width="stretch",
     )
 
-# ─── AI 投資判断ドラフト ──────────────────────────────────
+# ─── AI 3軸レビュー ───────────────────────────────────────
+def _verdict_badge(verdict: str, confidence: str) -> None:
+    color = {"BUY": "#16a34a", "HOLD": "#ca8a04", "SELL": "#dc2626"}.get(verdict, "#666")
+    label = {"BUY": "買い", "HOLD": "様子見", "SELL": "売り"}.get(verdict, verdict)
+    st.markdown(
+        f"""
+        <div style="padding:18px 24px; border-radius:12px; background:{color};
+                    color:white; font-weight:700; font-size:22px; text-align:center;
+                    margin: 8px 0 16px 0;">
+            判断: {label} ({verdict})  ／  確信度: {confidence}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_axis(title: str, axis: dict) -> None:
+    st.markdown(f"#### {title}")
+    bull = axis.get("bullish") or []
+    bear = axis.get("bearish") or []
+    if bull:
+        st.markdown("**強気要因**")
+        for b in bull:
+            st.markdown(f"- ✅ {b}")
+    if bear:
+        st.markdown("**弱気要因**")
+        for b in bear:
+            st.markdown(f"- ⚠️ {b}")
+    if not bull and not bear:
+        st.caption("該当する要因なし")
+    if axis.get("summary"):
+        st.markdown(f"_{axis['summary']}_")
+
+
 if run_ai:
     st.divider()
-    st.subheader("Claude 投資判断ドラフト")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        st.error("ANTHROPIC_API_KEY が環境変数に設定されていません。")
-    else:
-        with st.spinner("Claude Opus 4.7 で判断中..."):
-            try:
-                from ai_advisor import advise
-                advice = advise(snap)
-                st.markdown(advice.text)
-                with st.expander("API 使用量"):
-                    st.json({
-                        "input_tokens": advice.input_tokens,
-                        "output_tokens": advice.output_tokens,
-                        "cache_read_input_tokens": advice.cache_read_tokens,
-                        "cache_creation_input_tokens": advice.cache_creation_tokens,
-                    })
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"AI判断生成失敗: {exc}")
+    st.subheader("🤖 Claude 3軸レビュー")
+
+    with st.spinner("Claude Opus 4.7 で判断中... (ファンダ + テクニカル + ニュース 解析、20-40秒)"):
+        try:
+            from ai_advisor import advise
+            advice = advise(snap, api_key=api_key)
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"AI判断生成失敗: {exc}")
+            st.stop()
+
+    _verdict_badge(advice.verdict, advice.confidence)
+
+    cols = st.columns(3)
+    with cols[0]:
+        _render_axis("📊 ファンダメンタル", advice.fundamentals)
+    with cols[1]:
+        _render_axis("📈 テクニカル", advice.technical)
+    with cols[2]:
+        _render_axis("📰 センチメント", advice.sentiment)
+
+    st.markdown("#### 🧭 総合論拠")
+    st.info(advice.rationale)
+
+    st.caption(
+        "⚠️ AI による分析ドラフトです。投資助言ではなく、最終判断はご自身で行ってください。"
+    )
+    with st.expander("API 使用量"):
+        st.json({
+            "input_tokens": advice.input_tokens,
+            "output_tokens": advice.output_tokens,
+            "cache_read_input_tokens": advice.cache_read_tokens,
+            "cache_creation_input_tokens": advice.cache_creation_tokens,
+        })

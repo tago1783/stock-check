@@ -28,19 +28,28 @@ python -m streamlit run app.py
 2. https://share.streamlit.io にサインイン → "New app"
 3. リポジトリ・ブランチ・`app.py` を選択 → "Deploy"
 
-## オプション: AI 投資判断ドラフト（自分用）
+## AI 3軸レビュー（オプション）
 
-`ai_advisor.py` は Claude Opus 4.7 で投資判断のドラフトを生成します。公開デプロイでは無効化されています（API コストが発生するため）。
+詳細画面のサイドバーに **Anthropic API キー** を入力すると、Claude Opus 4.7 が銘柄を以下の3軸でレビューし、`BUY / HOLD / SELL` の判断を返します。
 
-ローカルで使う場合:
+- 📊 **ファンダメンタル** — PER/PBR/ROE/成長率/配当 などから強気要因・弱気要因を抽出
+- 📈 **テクニカル** — SMA/RSI/MACD/Bollinger からトレンドとモメンタムを評価
+- 📰 **センチメント** — 直近ニュースのトーンと市場の関心を解析
+
+各軸ごとに「強気要因」「弱気要因」「総括」を表示し、総合論拠も併記します。
+キーは入力タブのメモリ内のみに保持され、サーバー側には保存されません。
+[API キーの取得 (Anthropic Console)](https://console.anthropic.com/)
+
+### ローカル開発時
+
+`ANTHROPIC_API_KEY` 環境変数が立っていれば UI 入力欄をスキップしてそのまま使えます:
 
 ```powershell
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
-$env:ENABLE_AI = "1"
 python -m streamlit run app.py
 ```
 
-CLI から直接:
+CLI から直接実行も可能（3軸レビューがコンソールに表示されます）:
 
 ```powershell
 python ai_advisor.py 7203.T
