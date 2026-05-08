@@ -147,13 +147,19 @@ with tab_table:
 
 # ─── AI 3軸レビュー ───────────────────────────────────────
 def _verdict_badge(verdict: str, confidence: str) -> None:
-    color = {"BUY": "#16a34a", "HOLD": "#ca8a04", "SELL": "#dc2626"}.get(verdict, "#666")
+    # Softened palette — muted, not saturated (no pure RGB primaries)
+    color = {
+        "BUY": "#4A8A5C",   # muted forest
+        "HOLD": "#C4924A",  # warm amber
+        "SELL": "#B85048",  # muted brick
+    }.get(verdict, "#7A7770")
     label = {"BUY": "買い", "HOLD": "様子見", "SELL": "売り"}.get(verdict, verdict)
     st.markdown(
         f"""
-        <div style="padding:18px 24px; border-radius:12px; background:{color};
-                    color:white; font-weight:700; font-size:22px; text-align:center;
-                    margin: 8px 0 16px 0;">
+        <div style="padding:18px 28px; border-radius:14px; background:{color};
+                    color:#F8F6F0; font-weight:600; font-size:22px; text-align:center;
+                    margin: 12px 0 18px 0; letter-spacing: 0.02em;
+                    box-shadow: 0 1px 4px rgba(45, 44, 40, 0.10);">
             判断: {label} ({verdict})  ／  確信度: {confidence}
         </div>
         """,

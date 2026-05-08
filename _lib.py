@@ -14,20 +14,34 @@ def cached_fetch(ticker: str, period: str = "6mo", interval: str = "1d") -> Stoc
     return fetch_one(ticker, period=period, interval=interval)
 
 
-# ─── ウォッチリスト: URL の ?w=AAPL,MSFT,7203.T に永続化 ──────
+# ─── ウォッチリスト: session_state を主、URL を副 (シェア用) ─────
+# session_state はページ遷移で保持される。URL クエリパラメータは Streamlit の
+# 内部ナビでクリアされる場合があるため、session_state を信頼源とする。
 WATCHLIST_KEY = "w"
+_STATE_KEY = "_watchlist"
+
+
+def _hydrate_from_url_once() -> None:
+    """初回アクセス時のみ URL ?w=... を session_state に取り込む。"""
+    if _STATE_KEY in st.session_state:
+        return
+    raw = st.query_params.get(WATCHLIST_KEY, "")
+    st.session_state[_STATE_KEY] = [
+        t.strip().upper() for t in raw.split(",") if t.strip()
+    ]
 
 
 def get_watchlist() -> list[str]:
-    raw = st.query_params.get(WATCHLIST_KEY, "")
-    return [t.strip().upper() for t in raw.split(",") if t.strip()]
+    _hydrate_from_url_once()
+    return list(st.session_state.get(_STATE_KEY, []))
 
 
 def set_watchlist(tickers: list[str]) -> None:
     cleaned = [t.strip().upper() for t in tickers if t and t.strip()]
-    # 重複除去・順序保持
     seen: set[str] = set()
     unique = [t for t in cleaned if not (t in seen or seen.add(t))]
+    st.session_state[_STATE_KEY] = unique
+    # URL にも反映 (ブックマーク・共有用)
     if unique:
         st.query_params[WATCHLIST_KEY] = ",".join(unique)
     elif WATCHLIST_KEY in st.query_params:

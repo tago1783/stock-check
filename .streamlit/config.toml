@@ -1,0 +1,9 @@
+# Soft Slate theme: warm off-white + muted slate-blue accents.
+# Avoid pure white (#FFFFFF) and pure black (#000000) for a softer, modern feel.
+[theme]
+base = "light"
+primaryColor = "#5C7A99"
+backgroundColor = "#F6F5F2"
+secondaryBackgroundColor = "#ECE9E2"
+textColor = "#2D2C28"
+font = "sans serif"
