@@ -10,7 +10,7 @@ import os
 import pandas as pd
 import streamlit as st
 
-from _lib import cached_fetch, search_ticker
+from _lib import cached_fetch, has_cjk, search_ticker
 from indicators import add_indicators, latest_summary
 
 
@@ -29,10 +29,11 @@ with st.sidebar:
 
     # 社名検索 (任意)
     with st.expander("🔍 社名で検索"):
+        st.caption("英語/ローマ字で入力 (例: トヨタ → `toyota`)")
         with st.form("home_search_form"):
             sq = st.text_input(
                 "社名・シンボル",
-                placeholder="例: apple, ノースサンド",
+                placeholder="例: apple, toyota, nintendo",
                 label_visibility="collapsed",
             ).strip()
             search_btn = st.form_submit_button("検索", type="primary")
@@ -43,7 +44,10 @@ with st.sidebar:
                 st.error(f"検索失敗: {exc}")
                 cands = []
             if not cands:
-                st.info("候補なし")
+                if has_cjk(sq):
+                    st.warning("日本語不可。英語/ローマ字で再試行してください。")
+                else:
+                    st.info("候補なし")
             else:
                 st.caption(f"{len(cands)} 件 — クリックで Ticker 欄に反映")
                 for c in cands:

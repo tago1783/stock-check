@@ -9,6 +9,7 @@ from _lib import (
     cached_fetch,
     filter_by_regex,
     get_watchlist,
+    has_cjk,
     remove_from_watchlist,
     search_ticker,
 )
@@ -28,11 +29,15 @@ with st.expander("➕ 銘柄を追加", expanded=not current):
 
     # ── 社名検索タブ ──────────────────────────────────────
     with tab_search:
+        st.caption(
+            "💡 **英語/ローマ字で入力してください**。Yahoo Finance の検索 API は日本語（カナ・漢字）を受け付けません。"
+            " 例: `トヨタ` → `toyota`、`任天堂` → `nintendo`、`ソニーG` → `sony`"
+        )
         with st.form("search_form", clear_on_submit=False):
             cols = st.columns([4, 1])
             query = cols[0].text_input(
                 "社名・シンボル",
-                placeholder="例: apple, northsand, トヨタ, 任天堂",
+                placeholder="例: apple, toyota, nintendo, northsand",
                 label_visibility="collapsed",
             ).strip()
             submitted = cols[1].form_submit_button("🔍 検索", type="primary")
@@ -52,9 +57,16 @@ with st.expander("➕ 銘柄を追加", expanded=not current):
                 candidates = filter_by_regex(candidates, query)
 
             if not candidates:
-                st.info(
-                    "候補が見つかりませんでした。スペル、または `XXXX.T` (東証) のような市場サフィックスを確認してください。"
-                )
+                if has_cjk(query):
+                    st.warning(
+                        f"日本語の `{query}` では検索 API が反応しません。"
+                        " **英語/ローマ字** で入力してください（例: トヨタ → `toyota`、任天堂 → `nintendo`）。"
+                        " ローマ字が分からない場合は『✏️ ティッカー直接入力』タブで `7203.T` のように入れてください。"
+                    )
+                else:
+                    st.info(
+                        "候補が見つかりませんでした。スペル、または `XXXX.T` (東証) のような市場サフィックスを確認してください。"
+                    )
             else:
                 st.caption(f"{len(candidates)} 件ヒット")
                 already = set(current)

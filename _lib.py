@@ -90,3 +90,15 @@ def filter_by_regex(items: list[dict], pattern: str) -> list[dict]:
     except re.error:
         return items
     return [c for c in items if rx.search(c["name"]) or rx.search(c["symbol"])]
+
+
+def has_cjk(s: str) -> bool:
+    """日本語/中国語の漢字・かな・全角文字が含まれるか。
+
+    Yahoo Finance autocomplete は CJK で投げると 0 件を返すため、
+    UI 側で英語/ローマ字入力を促すために使う。
+    """
+    return any(
+        0x3040 <= ord(c) <= 0x9FFF or 0xFF00 <= ord(c) <= 0xFFEF
+        for c in s
+    )
